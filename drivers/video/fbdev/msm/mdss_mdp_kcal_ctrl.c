@@ -177,8 +177,7 @@ static int mdss_mdp_kcal_display_commit(void)
 	for (i = 0; i < mdata->nctl; i++) {
 		ctl = mdata->ctl_off + i;
 		/* pp setup requires mfd */
-		if (mdss_mdp_ctl_is_power_on(ctl) && ctl->mfd &&
-				ctl->mfd->index == 0) {
+		if ((mdss_mdp_ctl_is_power_on(ctl)) && (ctl->mfd)) {
 			ret = mdss_mdp_pp_setup(ctl);
 			if (ret)
 				pr_err("%s: setup failed: %d\n", __func__, ret);
@@ -384,7 +383,7 @@ static ssize_t kcal_enable_store(struct device *dev,
 
 	mdss_mdp_kcal_update_pcc(lut_data);
 	mdss_mdp_kcal_update_pa(lut_data);
-	//mdss_mdp_kcal_update_igc(lut_data);
+	mdss_mdp_kcal_update_igc(lut_data);
 	mdss_mdp_kcal_display_commit();
 
 	return count;
@@ -399,6 +398,19 @@ static ssize_t kcal_enable_show(struct device *dev,
 static ssize_t kcal_invert_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
+	int kcal_invert, r;
+	struct kcal_lut_data *lut_data = dev_get_drvdata(dev);
+
+	r = kstrtoint(buf, 10, &kcal_invert);
+	if ((r) || (kcal_invert != 0 && kcal_invert != 1) ||
+		(lut_data->invert == kcal_invert))
+		return -EINVAL;
+
+	lut_data->invert = kcal_invert;
+
+	mdss_mdp_kcal_update_igc(lut_data);
+	mdss_mdp_kcal_display_commit();
+
 	return count;
 }
 
