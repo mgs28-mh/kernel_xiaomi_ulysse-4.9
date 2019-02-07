@@ -62,6 +62,8 @@ obj-$(CONFIG_ANT_CHECK)		+= ant_check.o
 obj-$(CONFIG_FPR_FPC) 	+= fpr_FingerprintCard/
 obj-$(CONFIG_MEMORY_STATE_TIME)	+= memory_state_time.o
 
+
+
 obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
 obj-$(CONFIG_MEMORY_STATE_TIME)	+= memory_state_time.o
 obj-$(CONFIG_QCOM_XR_SMRTVWR_MISC) += qcom-xr-smrtvwr-misc.o
@@ -88,3 +90,4 @@ $(obj)/lkdtm_rodata_objcopy.o: $(obj)/lkdtm_rodata.o FORCE
 	$(call if_changed,objcopy)
 
 obj-$(CONFIG_OKL4_LINK_SHBUF)    += okl4-link-shbuf.o
+obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
