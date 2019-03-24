@@ -64,7 +64,7 @@ static bool force_warm_reboot;
  * There is no API from TZ to re-enable the registers.
  * So the SDI cannot be re-enabled when it already by-passed.
  */
-static int download_mode = 1;
+static int download_mode = 0;
 #else
 static const int download_mode;
 #endif
@@ -312,7 +312,9 @@ static void msm_restart_prepare(const char *cmd)
 	else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
 
-	if (cmd != NULL) {
+	if (in_panic) {
+		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
+	} else if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_BOOTLOADER);
@@ -363,7 +365,10 @@ static void msm_restart_prepare(const char *cmd)
 					     restart_reason);
 			}
 		} else if (!strncmp(cmd, "edl", 3)) {
+			if(0)
 			enable_emergency_dload_mode();
+			else
+			pr_info("This command already been disabled");
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}

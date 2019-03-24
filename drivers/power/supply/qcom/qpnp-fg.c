@@ -2026,10 +2026,10 @@ static void fg_handle_battery_insertion(struct fg_chip *chip)
 }
 
 
-static int soc_to_setpoint(int soc)
+/*static int soc_to_setpoint(int soc)
 {
 	return DIV_ROUND_CLOSEST(soc * 255, 100);
-}
+}*/
 
 static void batt_to_setpoint_adc(int vbatt_mv, u8 *data)
 {
@@ -2255,10 +2255,20 @@ static int get_prop_capacity(struct fg_chip *chip)
 				FULL_SOC_RAW - 2) + 1;
 	}
 
-	if (chip->battery_missing)
-		return MISSING_CAPACITY;
-	if (!chip->profile_loaded && !chip->use_otp_profile)
-		return DEFAULT_CAPACITY;
+	if (chip->battery_missing) {
+		msoc = get_monotonic_soc_raw(chip);
+		return DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY - 2),
+			FULL_SOC_RAW - 2) + 1;
+	}
+	if (!chip->profile_loaded && !chip->use_otp_profile) {
+
+		msoc = get_monotonic_soc_raw(chip);
+		if (msoc == FULL_SOC_RAW) {
+			return FULL_CAPACITY;
+		}
+		return DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY - 2),
+			FULL_SOC_RAW - 2) + 1;
+	}
 	if (chip->charge_full)
 		return FULL_CAPACITY;
 	if (chip->soc_empty) {
@@ -4562,6 +4572,30 @@ static enum power_supply_property fg_power_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_INFO_ID,
 };
 
+static int update_sram_current(struct fg_chip *chip)
+{
+	int cur=0;
+	int rc=0;
+	u8 reg[4];
+	int64_t temp=0;
+
+	fg_stay_awake(&chip->update_sram_wakeup_source);
+	fg_mem_lock(chip);
+	rc = fg_mem_read(chip,reg,0x5CC,2,3,0);
+	if(rc) {
+		pr_err("Failed to update current sram data\n");
+		return rc;
+	}
+
+	temp=reg[0];
+	temp|=reg[1]<<8;
+	temp=twos_compliment_extend(temp,2);
+	cur=div_s64((s64)temp * LSB_16B_NUMRTR,LSB_16B_DENMTR);
+	fg_mem_release(chip);
+	fg_relax(&chip->update_sram_wakeup_source);
+	return cur;
+}
+
 static int fg_power_get_property(struct power_supply *psy,
 				       enum power_supply_property psp,
 				       union power_supply_propval *val)
@@ -4588,7 +4622,7 @@ static int fg_power_get_property(struct power_supply *psy,
 		val->intval = get_sram_prop_now(chip, FG_DATA_VINT_ERR);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		val->intval = get_sram_prop_now(chip, FG_DATA_CURRENT);
+		val->intval = update_sram_current(chip);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = get_sram_prop_now(chip, FG_DATA_VOLTAGE);
@@ -4633,7 +4667,7 @@ static int fg_power_get_property(struct power_supply *psy,
 			val->intval = 1;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		val->intval = chip->nom_cap_uah;
+		val->intval = 3080;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		val->intval = chip->learning_data.learned_cc_uah;
@@ -5410,6 +5444,14 @@ static irqreturn_t fg_soc_irq_handler(int irq, void *_chip)
 		fg_stay_awake(&chip->esr_extract_wakeup_source);
 		schedule_work(&chip->esr_extract_config_work);
 	}
+	printk("%s, capacity=%d, current=%d, chg_status=%d, usb_present=%d, voltage=%d, batt_temp=%d, batt_id=%d\n", __func__,
+		get_prop_capacity(chip),
+		get_sram_prop_now(chip, FG_DATA_CURRENT),
+		chip->status,
+		is_usb_present(chip),
+		get_sram_prop_now(chip, FG_DATA_VOLTAGE),
+		get_sram_prop_now(chip, FG_DATA_BATT_TEMP),
+		get_sram_prop_now(chip, FG_DATA_BATT_ID));
 
 	return IRQ_HANDLED;
 }
@@ -6405,6 +6447,23 @@ wait:
 				&chip->cc_cv_threshold_mv);
 	}
 
+	if (!of_find_property(chip->spmi->dev.of_node,
+				"qcom,thermal-coefficients", NULL)) {
+		data = of_get_property(profile_node,
+				"qcom,thermal-coefficients", &len);
+		if (data && len == THERMAL_COEFF_N_BYTES) {
+			memcpy(chip->thermal_coefficients, data, len);
+			rc = fg_mem_write(chip, chip->thermal_coefficients,
+				THERMAL_COEFF_ADDR, THERMAL_COEFF_N_BYTES,
+				THERMAL_COEFF_OFFSET, 0);
+			if (rc)
+				pr_err("chen spmi write failed addr:%03x, ret:%d\n",
+						THERMAL_COEFF_ADDR, rc);
+			else if (fg_debug_mask & FG_STATUS)
+				pr_info("chen Battery thermal coefficients changed\n");
+		}
+	}
+
 	data = of_get_property(profile_node, "qcom,fg-profile-data", &len);
 	if (!data) {
 		pr_err("no battery profile loaded\n");
@@ -6572,8 +6631,8 @@ done:
 	if (chip->power_supply_registered)
 		power_supply_changed(chip->bms_psy);
 	fg_relax(&chip->profile_wakeup_source);
-	pr_info("Battery SOC: %d, V: %duV\n", get_prop_capacity(chip),
-		fg_data[FG_DATA_VOLTAGE].value);
+	pr_info("Battery SOC: %d, V: %duV batt_id %d\n", get_prop_capacity(chip),
+		fg_data[FG_DATA_VOLTAGE].value,get_sram_prop_now(chip, FG_DATA_BATT_ID));
 	complete_all(&chip->fg_reset_done);
 	return rc;
 no_profile:
@@ -8033,7 +8092,7 @@ static int fg_common_hw_init(struct fg_chip *chip)
 	}
 
 	rc = fg_mem_masked_write(chip, settings[FG_MEM_DELTA_SOC].address, 0xFF,
-			soc_to_setpoint(settings[FG_MEM_DELTA_SOC].value),
+			settings[FG_MEM_DELTA_SOC].value,
 			settings[FG_MEM_DELTA_SOC].offset);
 	if (rc) {
 		pr_err("failed to write delta soc rc=%d\n", rc);

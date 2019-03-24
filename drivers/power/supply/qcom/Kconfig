@@ -163,4 +163,22 @@ config SMB1390_CHARGE_PUMP
 	  SMB1390 is a div2 charge pump capable of delivering 6A charge current
 	  with very high efficiency.
 
+config BQ2560X_CHARGER
+	tristate "bq2560x charger driver"
+	depends on I2C
+	help
+	  Say Y to include support
+	  for bq2560x charger gauge driver for batteries.
+	  This driver source code implemented
+	  all functions bq2560x charger.
+
+config BQ27426_FG
+	tristate "BQ27426 fuel gauge driver"
+	depends on I2C
+	help
+	  Say Y to include support
+	  for BQ27426 fuel gauge driver for batteries.
+	  This driver source code implemented
+	  all functions for BQ27426 fuel gauge.
+
 endmenu

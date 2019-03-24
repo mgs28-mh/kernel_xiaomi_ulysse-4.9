@@ -13,6 +13,15 @@
  */
 #define pr_fmt(fmt)	"TYPEC: %s: " fmt, __func__
 
+#include <linux/init.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/errno.h>
+#include <linux/mm.h>
+#include <asm/io.h>
+#include <asm/uaccess.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <linux/bitops.h>
 #include <linux/err.h>
 #include <linux/gpio.h>
@@ -866,6 +875,83 @@ static int qpnp_typec_dr_get_property(struct dual_role_phy_instance *dual_role,
 	return 0;
 }
 
+struct qpnp_typec_chip *ro_chip;
+static struct proc_dir_entry *proc_root;
+static struct proc_dir_entry *proc_entry;
+
+#define USER_ROOT_DIR "usb"
+#define INTERPOLATION_DIR "interpolation"
+
+static int proc_interpolation_show(struct seq_file *m, void *v)
+{
+	u8 rc,reg;
+
+	if(!ro_chip)
+		return -1;
+
+	if(ro_chip->typec_state == POWER_SUPPLY_TYPE_UNKNOWN) {
+		seq_printf(m,"0\n");
+		return 0;
+	}
+	rc = qpnp_typec_read(ro_chip, &reg, TYPEC_UFP_STATUS_REG(ro_chip->base), 1);
+	if (rc) {
+		pr_err("failed to read status reg rc=%d\n", rc);
+		return -1;
+	}
+
+	printk("<lsy>the 0xbf08 : 0x%x",reg);
+
+	if(reg & 0x80)
+		seq_printf(m,"1\n");
+	else
+		seq_printf(m,"2\n");
+
+
+	return 0;
+}
+
+static int proc_interpolation_open(struct inode *inode, struct file *file)
+{
+	return single_open(file,proc_interpolation_show,NULL);
+}
+
+static const struct file_operations interpolation_proc_fops = {
+.owner = THIS_MODULE,
+.open = proc_interpolation_open,
+.read = seq_read,
+.llseek = seq_lseek,
+.release = single_release,
+};
+
+static int interpolation_create_proc_entry(void)
+{
+	int error = 0;
+	proc_root = proc_mkdir(USER_ROOT_DIR, NULL);
+	if (NULL==proc_root) {
+		printk(KERN_ALERT"Create dir /proc/%s error!\n", USER_ROOT_DIR);
+		return -ENOMEM;
+	}
+	printk(KERN_INFO"Create dir /proc/%s\n", USER_ROOT_DIR);
+
+	proc_entry = proc_create(INTERPOLATION_DIR, 0444, proc_root, &interpolation_proc_fops);
+	if (NULL ==proc_entry)
+	{
+		printk(KERN_ALERT"Create entry %s under /proc/%s error!\n", INTERPOLATION_DIR,USER_ROOT_DIR);
+		error = -ENOMEM;
+		goto err_out;
+
+	}
+
+	printk(KERN_INFO"Create /proc/%s/%s\n", USER_ROOT_DIR,INTERPOLATION_DIR);
+
+	return 0;
+err_out:
+
+	remove_proc_entry(INTERPOLATION_DIR, proc_root);
+	remove_proc_entry(USER_ROOT_DIR, NULL);
+	return error;
+}
+
 static int qpnp_typec_probe(struct platform_device *pdev)
 {
 	int rc;
@@ -891,6 +977,7 @@ static int qpnp_typec_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	ro_chip = chip;
 	chip->dev = &pdev->dev;
 
 	/* parse DT */
@@ -964,6 +1051,7 @@ static int qpnp_typec_probe(struct platform_device *pdev)
 
 	pr_info("TypeC successfully probed state=%d CC-line-state=%d\n",
 			chip->typec_state, chip->cc_line_state);
+	interpolation_create_proc_entry();
 	return 0;
 
 unregister_psy:
@@ -990,6 +1078,8 @@ static int qpnp_typec_remove(struct platform_device *pdev)
 
 	mutex_destroy(&chip->typec_lock);
 	dev_set_drvdata(chip->dev, NULL);
+	remove_proc_entry(INTERPOLATION_DIR, proc_root);
+	remove_proc_entry(USER_ROOT_DIR, NULL);
 
 	return 0;
 }
