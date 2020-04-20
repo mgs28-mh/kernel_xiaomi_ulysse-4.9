@@ -53,3 +53,9 @@
 	cd-gpios = <&tlmm 67 0x0>;
 };
 
+
+&apps_iommu {
+	qcom,no-aarch64;
+};
+
+
