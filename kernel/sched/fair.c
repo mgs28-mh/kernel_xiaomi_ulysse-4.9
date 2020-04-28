@@ -11527,7 +11527,7 @@ static inline bool nohz_kick_needed(struct rq *rq, int *type)
 		return true;
 
 	if (energy_aware())
-		return false;
+		return rq->misfit_task;
 
 	rcu_read_lock();
 	sds = rcu_dereference(per_cpu(sd_llc_shared, cpu));
