@@ -252,6 +252,8 @@ struct bq_fg_chip {
 	struct dentry *debug_root;
 
 	struct power_supply fg_psy;
+	struct power_supply_desc fg_psy_desc;
+
 
 	struct qpnp_vadc_chip	*vadc_dev;
 	struct regulator		*vdd;
@@ -1339,17 +1341,17 @@ static int fg_psy_register(struct bq_fg_chip *bq)
 {
 	int ret;
 
-	bq->fg_psy.name = "bms";
-	bq->fg_psy.type = POWER_SUPPLY_TYPE_BMS;
-	bq->fg_psy.properties = fg_props;
-	bq->fg_psy.num_properties = ARRAY_SIZE(fg_props);
-	bq->fg_psy.get_property = fg_get_property;
-	bq->fg_psy.set_property = fg_set_property;
-	bq->fg_psy.external_power_changed = fg_external_power_changed;
-	bq->fg_psy.property_is_writeable = fg_prop_is_writeable;
+	bq->fg_psy_desc.name = "bms";
+	bq->fg_psy_desc.type = POWER_SUPPLY_TYPE_BMS;
+	bq->fg_psy_desc.properties = fg_props;
+	bq->fg_psy_desc.num_properties = ARRAY_SIZE(fg_props);
+	bq->fg_psy_desc.get_property = fg_get_property;
+	bq->fg_psy_desc.set_property = fg_set_property;
+	bq->fg_psy_desc.external_power_changed = fg_external_power_changed;
+	bq->fg_psy_desc.property_is_writeable = fg_prop_is_writeable;
 
 
-	ret = power_supply_register(bq->dev, &bq->fg_psy);
+	ret = power_supply_register(bq->dev, &bq->fg_psy, &bq->fg_psy_desc);
 	if (ret < 0) {
 		pr_err("Failed to register fg_psy:%d\n", ret);
 		return ret;

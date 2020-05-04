@@ -208,6 +208,7 @@ struct bq2560x {
 	struct power_supply *usb_psy;
 	struct power_supply *bms_psy;
 	struct power_supply batt_psy;
+	struct power_supply_desc batt_psy_desc;
 	#ifdef THERMAL_CONFIG_FB
 	struct notifier_block notifier;
 	struct work_struct fb_notify_work;
@@ -731,7 +732,7 @@ static int bq2560x_get_batt_property(struct bq2560x *bq,
 	if (!bms_psy)
 		return -EINVAL;
 
-	ret = bms_psy->get_property(bms_psy, psp, val);
+	ret = bms_psy->desc->get_property(bms_psy, psp, val);
 
 	return ret;
 }
@@ -986,7 +987,7 @@ static int bq2560x_update_charging_profile(struct bq2560x *bq)
 	if (!bq->usb_present)
 		return 0;
 
-	ret = bq->usb_psy->get_property(bq->usb_psy,
+	ret = bq->usb_psy->desc->get_property(bq->usb_psy,
 							POWER_SUPPLY_PROP_TYPE, &prop);
 
 	if (ret < 0) {
@@ -1106,7 +1107,7 @@ static void bq2560x_external_power_changed(struct power_supply *psy)
 	int ret, current_limit = 0;
 
 
-	ret = bq->usb_psy->get_property(bq->usb_psy,
+	ret = bq->usb_psy->desc->get_property(bq->usb_psy,
 								POWER_SUPPLY_PROP_CURRENT_MAX, &prop);
 	if (ret < 0)
 		pr_err("could not read USB current_max property, ret=%d\n", ret);
@@ -1120,7 +1121,7 @@ static void bq2560x_external_power_changed(struct power_supply *psy)
 		bq2560x_update_charging_profile(bq);
 	}
 
-	ret = bq->usb_psy->get_property(bq->usb_psy,
+	ret = bq->usb_psy->desc->get_property(bq->usb_psy,
 								POWER_SUPPLY_PROP_ONLINE, &prop);
 	if (ret < 0)
 		pr_err("could not read USB ONLINE property, ret=%d\n", ret);
@@ -1132,12 +1133,12 @@ static void bq2560x_external_power_changed(struct power_supply *psy)
 	if (bq->usb_present && (current_limit != 2)) {
 		if (prop.intval == 0) {
 			pr_err("set usb online\n");
-			ret = power_supply_set_online(bq->usb_psy, true);
+			ret = 1;
 		}
 	} else {
 		if (prop.intval == 1) {
 			pr_err("set usb offline\n");
-			ret = power_supply_set_online(bq->usb_psy, false);
+			ret = 0;
 		}
 	}
 
@@ -1151,16 +1152,16 @@ static int bq2560x_psy_register(struct bq2560x *bq)
 {
 	int ret;
 
-	bq->batt_psy.name = "battery";
-	bq->batt_psy.type = POWER_SUPPLY_TYPE_BATTERY;
-	bq->batt_psy.properties = bq2560x_charger_props;
-	bq->batt_psy.num_properties = ARRAY_SIZE(bq2560x_charger_props);
-	bq->batt_psy.get_property = bq2560x_charger_get_property;
-	bq->batt_psy.set_property = bq2560x_charger_set_property;
-	bq->batt_psy.external_power_changed = bq2560x_external_power_changed;
-	bq->batt_psy.property_is_writeable = bq2560x_charger_is_writeable;
+	bq->batt_psy_desc.name = "battery";
+	bq->batt_psy_desc.type = POWER_SUPPLY_TYPE_BATTERY;
+	bq->batt_psy_desc.properties = bq2560x_charger_props;
+	bq->batt_psy_desc.num_properties = ARRAY_SIZE(bq2560x_charger_props);
+	bq->batt_psy_desc.get_property = bq2560x_charger_get_property;
+	bq->batt_psy_desc.set_property = bq2560x_charger_set_property;
+	bq->batt_psy_desc.external_power_changed = bq2560x_external_power_changed;
+	bq->batt_psy_desc.property_is_writeable = bq2560x_charger_is_writeable;
 
-	ret = power_supply_register(bq->dev, &bq->batt_psy);
+	ret = power_supply_register(bq->dev, &bq->batt_psy, &bq->batt_psy_desc);
 	if (ret < 0) {
 		pr_err("failed to register batt_psy:%d\n", ret);
 		return ret;
@@ -1238,7 +1239,7 @@ static int bq2560x_regulator_init(struct bq2560x *bq)
 	struct regulator_init_data *init_data;
 	struct regulator_config cfg = {};
 
-	init_data = of_get_regulator_init_data(bq->dev, bq->dev->of_node);
+	init_data = of_get_regulator_init_data(bq->dev, bq->dev->of_node, &bq->batt_psy_desc);
 	if (!init_data) {
 		dev_err(bq->dev, "Unable to allocate memory\n");
 		return -ENOMEM;
@@ -1742,7 +1743,7 @@ static void bq2560x_dump_fg_reg(struct bq2560x *bq)
 	if (++dump_cnt >= (FG_LOG_INTERVAL / calculate_jeita_poll_interval(bq))) {
 		dump_cnt = 0;
 		val.intval = 0;
-		bq->bms_psy->set_property(bq->bms_psy,
+		bq->bms_psy->desc->set_property(bq->bms_psy,
 				POWER_SUPPLY_PROP_UPDATE_NOW, &val);
 	}
 }
@@ -1941,7 +1942,6 @@ static irqreturn_t bq2560x_charger_interrupt(int irq, void *dev_id)
 	if(!bq->power_good) {
 	    if(bq->usb_present) {
 			bq->usb_present = false;
-			power_supply_set_present(bq->usb_psy, bq->usb_present);
 		}
 
 		if (bq->software_jeita_supported) {
@@ -1957,15 +1957,11 @@ static irqreturn_t bq2560x_charger_interrupt(int irq, void *dev_id)
 	} else if (bq->power_good && !bq->usb_present) {
 		bq->usb_present = true;
 		msleep(10);
-		power_supply_set_present(bq->usb_psy, bq->usb_present);
 
 		cancel_delayed_work(&bq->discharge_jeita_work);
 
 		if (bq->software_jeita_supported) { 
-			ret = alarm_start_relative(&bq->jeita_alarm,
-						ns_to_ktime(calculate_jeita_poll_interval(bq) * 1000000000LL));
-			if (ret)
-				pr_err("start alarm for JEITA detection failed, ret=%d\n",
+			pr_err("start alarm for JEITA detection failed, ret=%d\n",
 							ret);
 		}
 

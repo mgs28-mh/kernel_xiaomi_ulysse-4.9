@@ -6447,7 +6447,7 @@ wait:
 				&chip->cc_cv_threshold_mv);
 	}
 
-	if (!of_find_property(chip->spmi->dev.of_node,
+	if (!of_find_property(chip->dev->of_node,
 				"qcom,thermal-coefficients", NULL)) {
 		data = of_get_property(profile_node,
 				"qcom,thermal-coefficients", &len);
