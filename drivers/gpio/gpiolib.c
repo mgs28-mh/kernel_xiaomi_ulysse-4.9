@@ -2234,6 +2234,16 @@ static int _gpiod_direction_output_raw(struct gpio_desc *desc, int value)
 	struct gpio_chip *gc = desc->gdev->chip;
 	int ret;
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	if (test_bit(FLAG_USED_AS_IRQ, &desc->flags)) {
+		gpiod_err(desc,
+			  "%s: tried to set a GPIO tied to an IRQ as output\n",
+			  __func__);
+		if(desc_to_gpio(desc) != 65) {
+			return -EIO;
+		}
+	}
+#else
 	/* GPIOs used for IRQs shall not be set as output */
 	if (test_bit(FLAG_USED_AS_IRQ, &desc->flags)) {
 		gpiod_err(desc,
@@ -2241,6 +2251,7 @@ static int _gpiod_direction_output_raw(struct gpio_desc *desc, int value)
 			  __func__);
 		return -EIO;
 	}
+#endif
 
 	if (test_bit(FLAG_OPEN_DRAIN, &desc->flags)) {
 		/* First see if we can enable open drain in hardware */
