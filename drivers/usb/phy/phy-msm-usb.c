@@ -116,7 +116,11 @@ enum msm_usb_phy_type {
 	QUSB_ULPI_PHY,
 };
 
+#ifndef CONFIG_MACH_XIAOMI_ULYSSE
 #define IDEV_CHG_MAX	1500
+#else
+#define IDEV_CHG_MAX	2000
+#endif
 #define IUNIT		100
 #define IDEV_HVDCP_CHG_MAX	1800
 
