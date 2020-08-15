@@ -372,13 +372,23 @@ struct device_node *of_batterydata_get_best_profile(
 					best_id_kohm = batt_ids.kohm[i];
 				}
 			}
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+		if (best_node ==NULL) {
+			pr_err("sunxing no battery data configed,add default\n");
+			best_node = node;
+			best_id_kohm = batt_ids.kohm[i];
+			return best_node;
+		}
+#endif
 		}
 	}
 
+#ifndef CONFIG_MACH_XIAOMI_ULYSSE
 	if (best_node == NULL) {
 		pr_err("No battery data found\n");
 		return best_node;
 	}
+#endif
 
 	/* check that profile id is in range of the measured batt_id */
 	if (abs(best_id_kohm - batt_id_kohm) >
