@@ -15,7 +15,9 @@
  /dts-v1/;
 
 #include "msm8940.dtsi"
-#include "msm8940-pmi8937-mtp.dtsi"
+#include "msm8940-pmi8937.dtsi"
+#include "msm8937-mtp.dtsi"
+#include "msm8937-audio.dtsi"
 #include "ulysse-common/common.dtsi"
 #include "ugg/ugg-msm8940.dtsi"
 

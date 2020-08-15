@@ -15,8 +15,10 @@
 /dts-v1/;
 
 #include "msm8917.dtsi"
-#include "msm8917-pmi8937-mtp.dtsi"
-#include "msm8937-regulator.dtsi"
+#include "msm8917-pmi8937.dtsi"
+#include "msm8917-mtp.dtsi"
+#include "msm8917-audio.dtsi"
+#include "msm8953-wsa881x.dtsi"
 #include "ulysse-common/common.dtsi"
 #include "ugglite/ugglite-msm8917.dtsi"
 
