@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2007 Google Incorporated
  * Copyright (c) 2008-2020, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -46,6 +47,9 @@
 #include <linux/file.h>
 #include <linux/kthread.h>
 #include <linux/dma-buf.h>
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+#include "mdss_dsi.h"
+#endif
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
 #define CREATE_TRACE_POINTS
@@ -121,6 +125,16 @@ static int mdss_fb_send_panel_event(struct msm_fb_data_type *mfd,
 					int event, void *arg);
 static void mdss_fb_set_mdp_sync_pt_threshold(struct msm_fb_data_type *mfd,
 		int type);
+
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+int ce_state,feature_type;
+int cabc_state;
+bool ce_resume,feature_resume;
+bool cabc_resume;
+bool first_set_bl;
+int first_ce_state,first_cabc_state,first_feature_type;
+#endif
+
 void mdss_fb_no_update_notify_timer_cb(unsigned long data)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)data;
@@ -838,6 +852,406 @@ static ssize_t mdss_fb_get_dfps_mode(struct device *dev,
 	return ret;
 }
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+extern void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
+		                           struct dsi_panel_cmds *pcmds, u32 flags);
+
+static int first_set_feature(struct mdss_panel_data *pdata,int first_ce_state,int first_cabc_state,int first_feature_type)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+	if(!ctrl) {
+		pr_err("%s,not available\n",__func__);
+		return -1;
+	}
+
+	pr_debug("tsx0add_###_%s,first_ce_state: %d,first_cabc_state: %d,first_feature_type=%d\n",__func__,
+	first_ce_state,first_cabc_state,first_feature_type);
+
+	switch(first_ce_state) {
+	case 0x1:
+		if (ctrl->ce_on_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->ce_on_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x2:
+		if (ctrl->ce_off_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->ce_off_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	default:
+		pr_debug("unknow cmds: %d\n", first_ce_state);
+		break;
+
+	}
+	switch(first_cabc_state) {
+	case 0x1:
+		if (ctrl->cabc_on_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->cabc_on_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x2:
+		if (ctrl->cabc_off_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->cabc_off_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	default:
+		pr_debug("unknow cmds: %d\n", first_cabc_state);
+		break;
+
+	}
+	switch(first_feature_type) {
+	case 0x1:
+		if (ctrl->warm_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->warm_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x2:
+		if (ctrl->default_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->default_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x3:
+		if (ctrl->cold_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->cold_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x4:
+		if (ctrl->level1_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level1_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x5:
+		if (ctrl->level2_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level2_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x6:
+		if (ctrl->level3_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level3_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x7:
+		if (ctrl->level4_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level4_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x8:
+		if (ctrl->level5_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level5_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x9:
+		if (ctrl->level6_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level6_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0xa:
+		if (ctrl->level7_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level7_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0xb:
+		if (ctrl->level8_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level8_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	default:
+		pr_debug("unknow cmds: %d\n", first_feature_type);
+		break;
+
+	}
+	return 0;
+
+}
+
+static ssize_t mdss_fb_set_ce(struct device *dev,struct device_attribute *attr,const char *buf,size_t len)
+{
+struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_mdp_ctl *ctl = NULL;
+	int rc = 0;
+	int param = 0;
+	rc = kstrtoint(buf, 10, &param);
+	if (rc) {
+		pr_err("kstrtoint failed. rc=%d\n", rc);
+		return rc;
+	}
+
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	if (!pdata) {
+		pr_err("no panel connected!\n");
+		return len;
+	}
+		 ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+	if(!ctrl) {
+		pr_info("not available\n");
+		return len;
+	}
+
+	ce_state=param;
+
+	if(param>9) {
+		ce_resume=true;
+		return len;
+	}
+
+	ctl = mfd_to_ctl(mfd);
+	if(!ctl) {
+		pr_debug("%s,Display is off\n",__func__);
+		return len;
+	}
+
+	if (ctl->power_state!=1) {
+		pr_debug("%s,Dsi is not power on\n",__func__);
+		return len;
+	}
+
+	if(!first_set_bl) {
+		first_ce_state=param;
+		pr_err("%s,wait first_set_bl\n",__func__);
+		return len;
+	}
+
+	pr_err("tsx_###_%s,set_ce_cmd: %d,first_set_bl=%d\n",__func__, param,first_set_bl);
+
+	if(ce_resume) {
+		pr_err("%s abandon ce cmd from app set\n",__func__);
+		ce_resume=false;
+		return len;
+	}
+
+	switch(param) {
+		case 0x1:
+			if (ctrl->ce_on_cmds.cmd_cnt) {
+				mdss_dsi_panel_cmds_send(ctrl, &ctrl->ce_on_cmds,CMD_REQ_COMMIT);
+			}
+			break;
+		case 0x2:
+			if (ctrl->ce_off_cmds.cmd_cnt) {
+				mdss_dsi_panel_cmds_send(ctrl, &ctrl->ce_off_cmds,CMD_REQ_COMMIT);
+			}
+			break;
+		default:
+			pr_err("unknow cmds: %d\n", param);
+			break;
+
+	}
+		   printk("tsx ##### ce over ###\n");
+	return len;
+
+}
+
+static ssize_t mdss_fb_set_cabc(struct device *dev,struct device_attribute *attr,const char *buf,size_t len)
+{
+struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_mdp_ctl *ctl = NULL;
+	int rc = 0;
+	int param = 0;
+
+
+			rc = kstrtoint(buf, 10, &param);
+	if (rc) {
+		pr_err("kstrtoint failed. rc=%d\n", rc);
+		return rc;
+	}
+
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	if (!pdata) {
+		pr_err("no panel connected!\n");
+		return len;
+	}
+		 ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+	if(!ctrl) {
+		pr_info("not available\n");
+		return len;
+	}
+
+	cabc_state=param;
+
+	if(param>9) {
+		cabc_resume=true;
+		return len;
+	}
+
+	ctl = mfd_to_ctl(mfd);
+	if(!ctl) {
+		pr_debug("%s,Display is off\n",__func__);
+		return len;
+	}
+
+	if (ctl->power_state!=1) {
+		pr_debug("%s,Dsi is not power on\n",__func__);
+		return len;
+	}
+
+	if(!first_set_bl) {
+		first_cabc_state=param;
+		pr_err("%s,wait first_set_bl\n",__func__);
+		return len;
+	}
+
+	pr_err("guorui_###_%s,set_cabc_cmd: %d\n",__func__, param);
+
+	if(cabc_resume) {
+		pr_err("%s abandon cabc cmd from app set\n",__func__);
+		cabc_resume=false;
+		return len;
+	}
+
+	switch(param) {
+		case 0x1:
+			if (ctrl->cabc_on_cmds.cmd_cnt) {
+				mdss_dsi_panel_cmds_send(ctrl, &ctrl->cabc_on_cmds,CMD_REQ_COMMIT);
+			}
+			break;
+		case 0x2:
+			if (ctrl->cabc_off_cmds.cmd_cnt) {
+				mdss_dsi_panel_cmds_send(ctrl, &ctrl->cabc_off_cmds,CMD_REQ_COMMIT);
+			}
+			break;
+		default:
+			pr_err("unknow cmds: %d\n", param);
+			break;
+
+	}
+		   printk("guorui ##### cabc over ###\n");
+	return len;
+
+}
+
+static ssize_t mdss_fb_set_dispparam(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t len)
+{
+		struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_mdp_ctl *ctl = NULL;
+	int rc = 0;
+	int param = 0;
+
+	rc = kstrtoint(buf, 10, &param);
+	if (rc) {
+		pr_err("kstrtoint failed. rc=%d\n", rc);
+		return rc;
+	}
+
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	if (!pdata) {
+		pr_err("no panel connected!\n");
+		return len;
+	}
+		 ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+	if(!ctrl) {
+		pr_info("not available\n");
+		return len;
+	}
+	if(param>20) {
+		if(param<24)
+			feature_resume=true;
+		feature_type=param;
+		return len;
+	}
+	ctl = mfd_to_ctl(mfd);
+	if(!ctl) {
+		pr_err("%s,Display is off.  download code in panel on\n",__func__);
+		return len;
+	}
+
+	if (ctl->power_state!=1) {
+		pr_err("%s,Dsi is not power on. download code in panel on\n",__func__);
+		return len;
+	}
+
+	if(!first_set_bl) {
+		first_feature_type=param;
+		pr_err("%s,wait first_set_bl\n",__func__);
+		return len;
+	}
+
+	pr_err("tsx_###_%s,set_cmd: %d\n",__func__, param);
+	if(feature_resume) {
+		pr_err("%s abandon feature cmd from app set\n",__func__);
+		feature_resume=false;
+		return len;
+	}
+	switch(param) {
+	case 0x1:
+		if (ctrl->warm_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->warm_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x2:
+		if (ctrl->default_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->default_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x3:
+		if (ctrl->cold_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->cold_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x4:
+		if (ctrl->level1_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level1_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x5:
+		if (ctrl->level2_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level2_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x6:
+		if (ctrl->level3_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level3_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x7:
+		if (ctrl->level4_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level4_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x8:
+		if (ctrl->level5_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level5_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0x9:
+		if (ctrl->level6_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level6_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0xa:
+		if (ctrl->level7_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level7_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	case 0xb:
+		if (ctrl->level8_cmds.cmd_cnt) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->level8_cmds,CMD_REQ_COMMIT);
+		}
+		break;
+	default:
+		pr_err("unknow cmds: %d\n", param);
+		break;
+
+	}
+
+	return len;
+}
+#endif
+
 static ssize_t mdss_fb_change_persist_mode(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
@@ -933,6 +1347,12 @@ static DEVICE_ATTR(msm_fb_persist_mode, 0644,
 	mdss_fb_get_persist_mode, mdss_fb_change_persist_mode);
 static DEVICE_ATTR(idle_power_collapse, 0444, mdss_fb_idle_pc_notify, NULL);
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+static DEVICE_ATTR(msm_fb_dispparam, 0644, NULL, mdss_fb_set_dispparam);
+static DEVICE_ATTR(msm_fb_ce, 0644, NULL, mdss_fb_set_ce);
+static DEVICE_ATTR(msm_fb_cabc, 0644, NULL, mdss_fb_set_cabc);
+#endif
+
 static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
 	&dev_attr_msm_fb_split.attr,
@@ -947,6 +1367,11 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_measured_fps.attr,
 	&dev_attr_msm_fb_persist_mode.attr,
 	&dev_attr_idle_power_collapse.attr,
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	&dev_attr_msm_fb_dispparam.attr,
+	&dev_attr_msm_fb_ce.attr,
+	&dev_attr_msm_fb_cabc.attr,
+#endif
 	NULL,
 };
 
@@ -1753,6 +2178,18 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 		} else {
 			if (mfd->bl_level != bkl_lvl)
 				bl_notify_needed = true;
+
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+			first_set_bl = true;
+			if(first_set_feature(pdata,first_ce_state,first_cabc_state,first_feature_type))
+				pr_err("%s first set feature fail ! \n", __func__);
+			else{
+				first_ce_state=-1;
+				first_cabc_state=-1;
+				first_feature_type=-1;
+			}
+#endif
+
 			pr_debug("backlight sent to panel :%d\n", temp);
 
 			if (mfd->mdp.is_twm_en)
@@ -2119,6 +2556,9 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 	case FB_BLANK_POWERDOWN:
 	default:
 		req_power_state = MDSS_PANEL_POWER_OFF;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+		ce_resume=true;
+#endif
 		pr_debug("blank powerdown called\n");
 		ret = mdss_fb_blank_blank(mfd, req_power_state);
 		break;

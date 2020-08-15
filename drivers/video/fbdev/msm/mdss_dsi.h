@@ -438,9 +438,17 @@ struct mdss_dsi_ctrl_pdata {
 	int rst_gpio;
 	int disp_en_gpio;
 	int bklt_en_gpio;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	int lcmio_en_gpio;
+	int lcm_vci_en_gpio;
+#endif
 	int vdd_ext_gpio;
 	int mode_gpio;
 	int intf_mux_gpio;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	int ocp2131_enp_gpio;
+	int ocp2131_enn_gpio;
+#endif
 	bool bklt_en_gpio_invert;
 	int lcd_mode_sel_gpio;
 	int bklt_ctrl;	/* backlight ctrl */
@@ -486,6 +494,23 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_panel_cmds idle_on_cmds; /* for lp mode */
 	struct dsi_panel_cmds idle_off_cmds;
 	u32 *status_valid_params;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	struct dsi_panel_cmds cabc_on_cmds;
+	struct dsi_panel_cmds cabc_off_cmds;
+	struct dsi_panel_cmds cold_cmds;
+	struct dsi_panel_cmds warm_cmds;
+	struct dsi_panel_cmds default_cmds;
+	struct dsi_panel_cmds level1_cmds;
+	struct dsi_panel_cmds level2_cmds;
+	struct dsi_panel_cmds level3_cmds;
+	struct dsi_panel_cmds level4_cmds;
+	struct dsi_panel_cmds level5_cmds;
+	struct dsi_panel_cmds level6_cmds;
+	struct dsi_panel_cmds level7_cmds;
+	struct dsi_panel_cmds level8_cmds;
+	struct dsi_panel_cmds ce_on_cmds;
+	struct dsi_panel_cmds ce_off_cmds;
+#endif
 	u32 *status_cmds_rlen;
 	u32 *status_value;
 	unsigned char *return_buf;
