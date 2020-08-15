@@ -53,6 +53,11 @@
 	cd-gpios = <&tlmm 67 0x0>;
 };
 
+&mdss_fb0 {
+	qcom,cont-splash-memory {
+		linux,contiguous-region = <0xb4>;
+	};
+};
 
 &apps_iommu {
 	qcom,no-aarch64;
