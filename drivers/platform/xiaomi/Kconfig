@@ -1,0 +1,6 @@
+config MACH_XIAOMI_ULYSSE
+	bool "Xiaomi Redmi Note 5A (Unified)"
+	depends on ARCH_MSM8917
+	depends on ARCH_MSM8940
+	help
+	  Support for Xiaomi Redmi Note 5A (Unified).
