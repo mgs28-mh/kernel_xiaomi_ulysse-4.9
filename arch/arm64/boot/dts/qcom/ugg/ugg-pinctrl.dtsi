@@ -12,30 +12,32 @@
  * GNU General Public License for more details.
  */
  
-&tlmm {
-	cam_flash_front1_default: cam_flash_front1_default {
-			mux {
-				pins = "gpio50";
-				function = "gpio";
-			};
+&soc {
+	tlmm: pinctrl@1000000 {
+        cam_flash_front1_default: cam_flash_front1_default {
+                mux {
+                    pins = "gpio50";
+                    function = "gpio";
+                };
 
-			config {
-				pins = "gpio50";
-				bias-disable;
-				drive-strength = <2>;
-			};
-		};
+                config {
+                    pins = "gpio50";
+                    bias-disable;
+                    drive-strength = <2>;
+                };
+            };
 
-		cam_flash_front1_sleep: cam_flash_front1_sleep {
-			mux {
-				pins = "gpio50";
-				function = "gpio";
-			};
+            cam_flash_front1_sleep: cam_flash_front1_sleep {
+                mux {
+                    pins = "gpio50";
+                    function = "gpio";
+                };
 
-			config {
-				pins = "gpio50";
-				bias-disable; /* No PULL */
-				drive-strength = <2>; /* 2 MA */
-			};
-	};
+                config {
+                    pins = "gpio50";
+                    bias-disable; /* No PULL */
+                    drive-strength = <2>; /* 2 MA */
+                };
+        };
+    };
 };
