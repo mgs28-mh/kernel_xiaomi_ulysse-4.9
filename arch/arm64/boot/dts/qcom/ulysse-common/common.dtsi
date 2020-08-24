@@ -59,6 +59,10 @@
 	};
 };
 
+&usb_otg {
+	extcon = <&bq2560x_otg_supply>;
+};
+
 &apps_iommu {
 	qcom,no-aarch64;
 };
