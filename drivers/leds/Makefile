@@ -87,3 +87,6 @@ obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o
 
 # LED Triggers
 obj-$(CONFIG_LEDS_TRIGGERS)		+= trigger/
+
+# For Xiaomi Devices
+obj-$(CONFIG_LEDS_AW2013)		+= leds-aw2013.o
