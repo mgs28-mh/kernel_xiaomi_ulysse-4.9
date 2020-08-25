@@ -18,7 +18,11 @@
 
 #define MAX_OIS_MOD_NAME_SIZE 32
 #define MAX_OIS_NAME_SIZE 32
+#ifndef CONFIG_MACH_XIAOMI_ULYSSE
 #define MAX_OIS_REG_SETTINGS 800
+#else
+#define MAX_OIS_REG_SETTINGS 2000
+#endif
 
 #define MOVE_NEAR 0
 #define MOVE_FAR  1
