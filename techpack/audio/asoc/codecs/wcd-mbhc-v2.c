@@ -33,6 +33,20 @@
 #include "wcd-mbhc-adc.h"
 #include "wcd-mbhc-v2-api.h"
 
+
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+#define PA_GPIO 1
+
+    static int det_extn_cable_en;
+    int smg_enable_gpio = 0;
+    int smg_in_gpio = 0;
+
+static void wcd_enable_mbhc_supply(struct wcd_mbhc *mbhc,
+			enum wcd_mbhc_plug_type plug_type);
+#endif
+
+
+
 void wcd_mbhc_jack_report(struct wcd_mbhc *mbhc,
 			  struct snd_soc_jack *jack, int status, int mask)
 {
@@ -413,6 +427,10 @@ static void wcd_mbhc_clr_and_turnon_hph_padac(struct wcd_mbhc *mbhc)
 {
 	bool pa_turned_on = false;
 	u8 wg_time = 0;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE    
+    if(gpio_get_value(PA_GPIO))
+	return;
+#endif
 
 	WCD_MBHC_REG_READ(WCD_MBHC_HPH_CNP_WG_TIME, wg_time);
 	wg_time += 1;
@@ -796,7 +814,26 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 			wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADPHONE);
 		if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
 			wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+        if (mbhc->impedance_detect) {
+			mbhc->mbhc_cb->compute_impedance(mbhc,
+			&mbhc->zl, &mbhc->zr);
+        if ((mbhc->zl > 20000) && (mbhc->zr > 20000)) {
+            pr_debug("%s: special accessory \n", __func__);
+            if (mbhc->mbhc_cfg->swap_gnd_mic &&
+                mbhc->mbhc_cfg->swap_gnd_mic(mbhc->codec, true)) {
+                pr_debug("%s: US_EU gpio present,flip switch again\n"
+                , __func__);
+            }
+        wcd_enable_mbhc_supply(mbhc, MBHC_PLUG_TYPE_HEADSET);
+        wcd_mbhc_report_plug(mbhc, 1, SND_JACK_HEADSET);
+            } else {
+                wcd_mbhc_report_plug(mbhc, 1, SND_JACK_UNSUPPORTED);
+            }
+        }
+#else
 		wcd_mbhc_report_plug(mbhc, 1, SND_JACK_UNSUPPORTED);
+#endif
 	} else if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
 		if (mbhc->mbhc_cfg->enable_anc_mic_detect &&
 		    mbhc->mbhc_fn->wcd_mbhc_detect_anc_plug_type)
@@ -813,6 +850,24 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 		wcd_mbhc_report_plug(mbhc, 1, jack_type);
 	} else if (plug_type == MBHC_PLUG_TYPE_HIGH_HPH) {
 		if (mbhc->mbhc_cfg->detect_extn_cable) {
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+            if (mbhc->impedance_detect) {
+			mbhc->mbhc_cb->compute_impedance(mbhc,
+			&mbhc->zl, &mbhc->zr);
+			if ((mbhc->zl > 20000) && (mbhc->zr > 20000)) {
+				pr_debug("tsx_hph_%s: special accessory \n", __func__);
+				if (mbhc->mbhc_cfg->swap_gnd_mic &&
+				mbhc->mbhc_cfg->swap_gnd_mic(mbhc->codec, true)) {
+				pr_debug("%s: US_EU gpio present,flip switch again\n"
+				, __func__);
+				}
+				wcd_enable_mbhc_supply(mbhc, MBHC_PLUG_TYPE_HEADSET);
+				wcd_mbhc_report_plug(mbhc, 1, SND_JACK_HEADSET);
+			} else {
+			 wcd_mbhc_report_plug(mbhc, 1, SND_JACK_LINEOUT);
+			}
+		    } else{
+#endif
 			/* High impedance device found. Report as LINEOUT */
 			wcd_mbhc_report_plug(mbhc, 1, SND_JACK_LINEOUT);
 			pr_debug("%s: setup mic trigger for further detection\n",
@@ -832,6 +887,9 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 						 3);
 			wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_INS,
 					     true);
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+            }
+#endif
 		} else {
 			wcd_mbhc_report_plug(mbhc, 1, SND_JACK_LINEOUT);
 		}
@@ -844,6 +902,48 @@ exit:
 }
 EXPORT_SYMBOL(wcd_mbhc_find_plug_and_report);
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+static void wcd_enable_mbhc_supply(struct wcd_mbhc *mbhc,
+			enum wcd_mbhc_plug_type plug_type)
+{
+
+	struct snd_soc_codec *codec = mbhc->codec;
+
+	if (det_extn_cable_en && mbhc->is_extn_cable &&
+		mbhc->mbhc_cb && mbhc->mbhc_cb->extn_use_mb &&
+		mbhc->mbhc_cb->extn_use_mb(codec)) {
+		if (plug_type == MBHC_PLUG_TYPE_HEADPHONE ||
+		    plug_type == MBHC_PLUG_TYPE_HEADSET)
+			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
+	} else {
+		if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
+			if (mbhc->is_hs_recording || mbhc->micbias_enable)
+				wcd_enable_curr_micbias(mbhc,
+							WCD_MBHC_EN_MB);
+			else if ((test_bit(WCD_MBHC_EVENT_PA_HPHL,
+				&mbhc->event_state)) ||
+				(test_bit(WCD_MBHC_EVENT_PA_HPHR,
+				&mbhc->event_state)))
+					wcd_enable_curr_micbias(mbhc,
+							WCD_MBHC_EN_PULLUP);
+			else
+#if 1
+				wcd_enable_curr_micbias(mbhc,
+							WCD_MBHC_EN_MB);
+#else
+				wcd_enable_curr_micbias(mbhc,
+							WCD_MBHC_EN_CS);
+#endif
+		} else if (plug_type == MBHC_PLUG_TYPE_HEADPHONE) {
+			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_CS);
+		} else {
+			printk("tsx_disable_bias\n");
+			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_NONE);
+		}
+	}
+}
+
+#endif
 static void wcd_mbhc_swch_irq_handler(struct wcd_mbhc *mbhc)
 {
 	bool detection_type = 0;
@@ -945,7 +1045,15 @@ static void wcd_mbhc_swch_irq_handler(struct wcd_mbhc *mbhc)
 			jack_type = SND_JACK_LINEOUT;
 			break;
 		case MBHC_PLUG_TYPE_ANC_HEADPHONE:
-			jack_type = SND_JACK_ANC_HEADPHONE;
+            jack_type = SND_JACK_ANC_HEADPHONE;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+            mbhc->mbhc_cb->irq_control(codec,
+					mbhc->intr_ids->mbhc_hs_rem_intr,
+					false);
+			mbhc->mbhc_cb->irq_control(codec,
+					mbhc->intr_ids->mbhc_hs_ins_intr,
+					false);
+#endif
 			break;
 		default:
 			pr_info("%s: Invalid current plug: %d\n",
@@ -1890,7 +1998,41 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_codec *codec,
 		mbhc->moist_iref = hph_moist_config[1];
 		mbhc->moist_rref = hph_moist_config[2];
 	}
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	smg_enable_gpio = of_get_named_gpio(card->dev->of_node, "qcom,smg3711-enable-gpio",0);
+		 gpio_direction_output(smg_enable_gpio, 1);
+		 msleep(5);
+	pr_debug("%s: smg_enable_gpio_ = %d\n",__func__, smg_enable_gpio);
+	if (smg_enable_gpio <0) {
+		dev_err(card->dev,
+			"%s: missing %d in dt node\n", __func__, smg_enable_gpio);
+	}
 
+	if (gpio_is_valid(smg_enable_gpio)) {
+		if (gpio_request(smg_enable_gpio, "SMG3711_ENABLE")) {
+			pr_err("%s: Failed to request gpio %d\n",
+					__func__, smg_enable_gpio);
+		}
+		gpio_direction_output(smg_enable_gpio, 1);
+		msleep(5);
+	}
+	smg_in_gpio = of_get_named_gpio(card->dev->of_node, "qcom,smg3711-in-gpio",0);
+	pr_debug("%s: smg_in_gpio = %d\n",__func__, smg_in_gpio);
+	if (smg_in_gpio <0) {
+		dev_err(card->dev,
+			"%s: missing %d in dt node\n", __func__, smg_in_gpio);
+	}
+
+	if (gpio_is_valid(smg_in_gpio)) {
+		if (gpio_request(smg_in_gpio, "SMG3711_IN")) {
+			pr_err("%s: Failed to request gpio %d\n",
+					__func__, smg_in_gpio);
+		}
+		gpio_direction_output(smg_in_gpio, 1);
+		msleep(5);
+	}
+	pr_debug("headphone_en_gpio_value=%d,in_gpio_value=%d\n",gpio_get_value(smg_enable_gpio),gpio_get_value(smg_in_gpio));
+#endif
 	mbhc->in_swch_irq_handler = false;
 	mbhc->current_plug = MBHC_PLUG_TYPE_NONE;
 	mbhc->is_btn_press = false;

@@ -283,7 +283,11 @@ void wcd_clsh_imped_config(struct snd_soc_codec *codec, int imped, bool reset)
 		return;
 	}
 	index = get_impedance_index(imped);
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	if (index >= ARRAY_SIZE(imped_index)) {
+#else
 	if (index >= (ARRAY_SIZE(imped_index) - 1)) {
+#endif
 		pr_debug("%s, impedance not in range = %d\n", __func__, imped);
 		return;
 	}

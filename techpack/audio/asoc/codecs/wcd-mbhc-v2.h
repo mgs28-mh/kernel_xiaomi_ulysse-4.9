@@ -153,6 +153,10 @@ do {                                                    \
 #define WCD_MBHC_BTN_PRESS_COMPL_TIMEOUT_MS  50
 #define ANC_DETECT_RETRY_CNT 7
 #define WCD_MBHC_SPL_HS_CNT  1
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+#define PA_GPIO 1
+extern int smg_in_gpio;
+#endif
 
 enum wcd_mbhc_detect_logic {
 	WCD_DETECTION_LEGACY,
