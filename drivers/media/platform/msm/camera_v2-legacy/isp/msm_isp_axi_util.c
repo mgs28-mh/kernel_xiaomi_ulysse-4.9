@@ -526,8 +526,17 @@ static void msm_isp_cfg_framedrop_reg(struct vfe_device *vfe_dev,
 	if (!runtime_init_frame_drop)
 		framedrop_period = stream_info->current_framedrop_period;
 
+#ifndef CONFIG_MACH_XIAOMI_ULYSSE
 	if (MSM_VFE_STREAM_STOP_PERIOD != framedrop_period)
+#else
+	if (MSM_VFE_STREAM_STOP_PERIOD != framedrop_period) {
+#endif
 		framedrop_pattern = 0x1;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+		if(framedrop_period > 1)
+			framedrop_pattern = framedrop_pattern << (framedrop_period-1);
+	}
+#endif
 
 	ISP_DBG("%s: stream %x framedrop pattern %x period %u\n", __func__,
 		stream_info->stream_handle, framedrop_pattern,
