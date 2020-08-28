@@ -12,6 +12,8 @@
  * GNU General Public License for more details.
  */
 
+#include "common-disable.dtsi"
+
 #include "common-audio.dtsi"
 #include "common-battery.dtsi"
 #include "common-mdss.dtsi"

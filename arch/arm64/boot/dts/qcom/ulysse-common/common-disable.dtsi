@@ -1,0 +1,12 @@
+&spmi_bus {
+	/delete-node/ qcom,pmi8937@2;
+	/delete-node/ qcom,pmi8937@3;
+};
+
+&i2c_5 {
+	/delete-node/ nq@28;
+};
+
+&pm8937_gpios {
+	/delete-node/ nfc_clk;
+};
