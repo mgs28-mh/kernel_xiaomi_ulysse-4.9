@@ -45,6 +45,8 @@ static void wcd_enable_mbhc_supply(struct wcd_mbhc *mbhc,
 			enum wcd_mbhc_plug_type plug_type);
 #endif
 
+static int det_Selfiestick_ins = 0; 
+static int headset_state = 0;
 
 
 void wcd_mbhc_jack_report(struct wcd_mbhc *mbhc,
@@ -336,10 +338,10 @@ out_micb_en:
 			hphlocp_off_report(mbhc, SND_JACK_OC_HPHL);
 		clear_bit(WCD_MBHC_EVENT_PA_HPHL, &mbhc->event_state);
 		/* check if micbias is enabled */
-		if (micbias2)
+		if (micbias2 || (det_Selfiestick_ins == 1))
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-		else
+		else if(!wcd_swch_level_remove(mbhc))
 			/* Disable micbias, pullup & enable cs */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_CS);
 		mutex_unlock(&mbhc->hphl_pa_lock);
@@ -357,7 +359,7 @@ out_micb_en:
 		if (micbias2)
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-		else
+		else if(!wcd_swch_level_remove(mbhc))
 			/* Disable micbias, pullup & enable cs */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_CS);
 		mutex_unlock(&mbhc->hphr_pa_lock);
@@ -369,7 +371,7 @@ out_micb_en:
 		if (micbias2)
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-		else
+		else if(!wcd_swch_level_remove(mbhc))
 			/* Disable micbias, enable pullup & cs */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_PULLUP);
 		break;
@@ -379,7 +381,7 @@ out_micb_en:
 		if (micbias2)
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-		else
+		else if(!wcd_swch_level_remove(mbhc))
 			/* Disable micbias, enable pullup & cs */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_PULLUP);
 		break;
@@ -576,7 +578,8 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 	u8 fsm_en = 0;
 
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
-
+	
+	headset_state = insertion;
 	pr_debug("%s: enter insertion %d hph_status %x\n",
 		 __func__, insertion, mbhc->hph_status);
 	if (!insertion) {
@@ -596,7 +599,8 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			mbhc->buttons_pressed &=
 				~WCD_MBHC_JACK_BUTTON_MASK;
 		}
-
+		
+		det_Selfiestick_ins = 0;
 		if (mbhc->micbias_enable) {
 			if (mbhc->mbhc_cb->mbhc_micbias_control)
 				mbhc->mbhc_cb->mbhc_micbias_control(
@@ -818,18 +822,20 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
         if (mbhc->impedance_detect) {
 			mbhc->mbhc_cb->compute_impedance(mbhc,
 			&mbhc->zl, &mbhc->zr);
-        if ((mbhc->zl > 20000) && (mbhc->zr > 20000)) {
-            pr_debug("%s: special accessory \n", __func__);
-            if (mbhc->mbhc_cfg->swap_gnd_mic &&
-                mbhc->mbhc_cfg->swap_gnd_mic(mbhc->codec, true)) {
-                pr_debug("%s: US_EU gpio present,flip switch again\n"
-                , __func__);
-            }
-        wcd_enable_mbhc_supply(mbhc, MBHC_PLUG_TYPE_HEADSET);
-        wcd_mbhc_report_plug(mbhc, 1, SND_JACK_HEADSET);
-            } else {
-                wcd_mbhc_report_plug(mbhc, 1, SND_JACK_UNSUPPORTED);
-            }
+			if ((mbhc->zl > 20000) && (mbhc->zr > 20000)) {
+				pr_debug("%s: special accessory \n", __func__);
+				if (mbhc->mbhc_cfg->swap_gnd_mic &&
+					mbhc->mbhc_cfg->swap_gnd_mic(mbhc->codec, true)) {
+					pr_debug("%s: US_EU gpio present,flip switch again\n"
+					, __func__);
+				}
+				//wcd_enable_mbhc_supply(mbhc, MBHC_PLUG_TYPE_HEADSET);
+				wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB); 
+				wcd_mbhc_report_plug(mbhc, 1, SND_JACK_HEADSET);
+				det_Selfiestick_ins = 1;
+			} else {
+					wcd_mbhc_report_plug(mbhc, 1, SND_JACK_UNSUPPORTED);
+			}
         }
 #else
 		wcd_mbhc_report_plug(mbhc, 1, SND_JACK_UNSUPPORTED);
@@ -854,19 +860,21 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
             if (mbhc->impedance_detect) {
 			mbhc->mbhc_cb->compute_impedance(mbhc,
 			&mbhc->zl, &mbhc->zr);
-			if ((mbhc->zl > 20000) && (mbhc->zr > 20000)) {
-				pr_debug("tsx_hph_%s: special accessory \n", __func__);
-				if (mbhc->mbhc_cfg->swap_gnd_mic &&
-				mbhc->mbhc_cfg->swap_gnd_mic(mbhc->codec, true)) {
-				pr_debug("%s: US_EU gpio present,flip switch again\n"
-				, __func__);
+				if ((mbhc->zl > 20000) && (mbhc->zr > 20000)) {
+					pr_debug("tsx_hph_%s: special accessory \n", __func__);
+					if (mbhc->mbhc_cfg->swap_gnd_mic &&
+					mbhc->mbhc_cfg->swap_gnd_mic(mbhc->codec, true)) {
+					pr_debug("%s: US_EU gpio present,flip switch again\n"
+					, __func__);
+					}
+					//wcd_enable_mbhc_supply(mbhc, MBHC_PLUG_TYPE_HEADSET);
+					wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
+					det_Selfiestick_ins = 1;
+					wcd_mbhc_report_plug(mbhc, 1, SND_JACK_HEADSET);
+				} else {
+					wcd_mbhc_report_plug(mbhc, 1, SND_JACK_LINEOUT);
 				}
-				wcd_enable_mbhc_supply(mbhc, MBHC_PLUG_TYPE_HEADSET);
-				wcd_mbhc_report_plug(mbhc, 1, SND_JACK_HEADSET);
-			} else {
-			 wcd_mbhc_report_plug(mbhc, 1, SND_JACK_LINEOUT);
-			}
-		    } else{
+		} else {
 #endif
 			/* High impedance device found. Report as LINEOUT */
 			wcd_mbhc_report_plug(mbhc, 1, SND_JACK_LINEOUT);
@@ -1375,11 +1383,38 @@ done:
 	return IRQ_HANDLED;
 }
 
+static ssize_t state_show(struct device *dev,struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf,"%d\n",headset_state);
+}
+
+static DEVICE_ATTR(state,0440,state_show,NULL);
+
 static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 {
 	int ret = 0;
 	struct snd_soc_codec *codec = mbhc->codec;
-
+	
+		struct device *dev;
+	struct class *dev_class;
+	dev_class = class_create(THIS_MODULE,"h2w");
+	if (IS_ERR(dev_class))
+	{
+		pr_err("%s: class_create fail\n", __func__);
+		goto CREATE_FAIL;
+	}
+	dev = device_create(dev_class,NULL,0,NULL,"device");
+	if (IS_ERR(dev)) 
+	{
+		pr_err("%s: device_create fail\n", __func__);
+		goto CREATE_FAIL;
+	}	
+	if(device_create_file(dev,&dev_attr_state))
+	{	
+		pr_err("%s: device_create_file fail\n", __func__);
+		goto CREATE_FAIL;
+	}
+CREATE_FAIL:
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_LOCK(mbhc);
 
@@ -1421,7 +1456,7 @@ static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 4);
 	} else {
 		/* Insertion debounce set to 96ms */
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 6);
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 8);
 	}
 
 	/* Button Debounce set to 16ms */
