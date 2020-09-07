@@ -81,6 +81,7 @@
             00 00 00 00 00 00 EC 01
             ];
 		touchscreen-key-map = <139 172 158>;
+		goodix,slide-wakeup = <1>;
         };
 
         focaltech@38{
