@@ -16,6 +16,14 @@ struct of_regulator_match {
 	const struct regulator_desc *desc;
 };
 
+#if defined(CONFIG_BQ2560X_CHARGER)
+extern struct regulator_init_data
+	*of_get_regulator_init_data_bq(struct device *dev,
+				    struct device_node *node,
+				    struct regulator_desc *desc);
+
+#endif
+
 #if defined(CONFIG_OF)
 extern struct regulator_init_data
 	*of_get_regulator_init_data(struct device *dev,

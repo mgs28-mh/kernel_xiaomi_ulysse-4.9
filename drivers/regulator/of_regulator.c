@@ -182,6 +182,28 @@ static void of_get_regulation_constraints(struct device_node *np,
  * tree node, returns a pointer to the populated struture or NULL if memory
  * alloc fails.
  */
+
+#if defined(CONFIG_BQ2560X_CHARGER)
+struct regulator_init_data *of_get_regulator_init_data_bq(struct device *dev,
+					  struct device_node *node,
+					  struct regulator_desc *desc)
+{
+	struct regulator_init_data *init_data;
+
+	if (!node)
+		return NULL;
+
+	init_data = devm_kzalloc(dev, sizeof(*init_data), GFP_KERNEL);
+	if (!init_data)
+		return NULL; /* Out of memory? */
+
+	of_get_regulation_constraints(node, &init_data, desc);
+	return init_data;
+}
+EXPORT_SYMBOL_GPL(of_get_regulator_init_data_bq);
+
+#endif
+
 struct regulator_init_data *of_get_regulator_init_data(struct device *dev,
 					  struct device_node *node,
 					  const struct regulator_desc *desc)
