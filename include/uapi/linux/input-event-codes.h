@@ -336,6 +336,13 @@
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+#define KEY_ANT_CONNECT         0x292
+#define KEY_ANT_UNCONNECT       0x293
+
+#define INPUT_PROP_NO_DUMMY_RELEASE	0x06	/* no dummy event */
+#endif
+
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
 #define BTN_MISC		0x100
