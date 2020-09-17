@@ -39,6 +39,10 @@ static const char *goodix_input_phys = "input/ts";
 struct i2c_client *i2c_connect_client;
 static struct proc_dir_entry *gtp_config_proc;
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+extern char g_lcd_id[128];
+#endif
+
 enum doze {
 	DOZE_DISABLED = 0,
 	DOZE_ENABLED = 1,
@@ -2030,6 +2034,13 @@ static int gtp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int ret = -1;
 	struct goodix_ts_data *ts;
 	struct goodix_ts_platform_data *pdata;
+
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+    if (strstr(g_lcd_id, "shenchao") != NULL) {
+	pr_err("not the goodix tp,skiping the gt9xx probe func");
+		return -ENODEV;
+	}
+#endif
 
 	/* do NOT remove these logs */
 	dev_info(&client->dev, "GTP Driver Version: %s\n", GTP_DRIVER_VERSION);
