@@ -64,18 +64,6 @@
 
 };
 
-&pm8937_gpios {
-	gpio@c500{
-		status = "okay";
-		qcom,mode = <1>;		/*DIGITAL OUT*/
-		qcom,pull = <5>;		/*NO PULL*/
-		qcom,src-sel = <5>; 		/*DTEST2 OUT*/
-		qcom,vin-sel = <3>;
-		qcom,master-en = <1>;		/*ENABLE GPIO*/
-		qcom,out-strength = <3>;	/*Max strength current*/
-	};
-};
-
 &i2c_2 {
 	status = "ok";
 };
