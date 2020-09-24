@@ -61,6 +61,9 @@ static int gtp_esd_init(struct goodix_ts_data *ts);
 static void gtp_esd_check_func(struct work_struct *);
 static int gtp_init_ext_watchdog(struct i2c_client *client);
 
+static int gesture_enable_flag = 1;
+static int goodix_select_gesture_mode(struct input_dev *dev, unsigned int type, unsigned int code, int value);
+
 /*
  * return: 2 - ok, < 0 - i2c transfer error
  */
@@ -304,6 +307,22 @@ void gtp_work_control_enable(struct goodix_ts_data *ts, bool enable)
 		clear_bit(REPORT_THREAD_ENABLED, &ts->flags);
 		dev_dbg(&ts->client->dev, "Input report thread disabled!\n");
 	}
+}
+
+static int goodix_select_gesture_mode(struct input_dev *dev, unsigned int type, unsigned int code, int value)
+{
+	struct goodix_ts_data *ts = input_get_drvdata(dev);
+	printk("[GESTURE]zhanghao enter the gt9xx gesture select!!!!\n");
+	if((type == EV_SYN )&& (code == SYN_CONFIG)) {
+		if (value == 5) {
+			printk("[GESTURE]enable gesture");
+			gesture_enable_flag = 1;
+		} else {
+			printk("[GESTURE]disable gesture");
+			gesture_enable_flag = 0;
+		}
+	}
+	return 0;
 }
 
 static int gtp_gesture_handler(struct goodix_ts_data *ts)
@@ -577,7 +596,7 @@ static void gtp_work_func(struct goodix_ts_data *ts)
 		return;
 
 	/* gesture event */
-	if (ts->pdata->slide_wakeup && test_bit(DOZE_MODE, &ts->flags)) {
+	if (gesture_enable_flag && test_bit(DOZE_MODE, &ts->flags)) {
 		ret =  gtp_gesture_handler(ts);
 		if (ret)
 			dev_err(&ts->client->dev,
@@ -1640,7 +1659,7 @@ static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
 		input_set_capability(ts->input_dev, EV_KEY,
 				     ts->pdata->key_map[index]);
 
-	if (ts->pdata->slide_wakeup)
+	if (gesture_enable_flag)
 		input_set_capability(ts->input_dev, EV_KEY, KEY_POWER);
 
 	if (ts->pdata->swap_x2y)
@@ -1664,6 +1683,7 @@ static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
 		__set_bit(BTN_TOOL_FINGER, ts->input_dev->keybit);
 	}
 
+	ts->input_dev->event = goodix_select_gesture_mode;
 	ts->input_dev->name = goodix_ts_name;
 	ts->input_dev->phys = goodix_input_phys;
 	ts->input_dev->id.bustype = BUS_I2C;
@@ -1763,6 +1783,7 @@ static int gtp_parse_dt(struct device *dev,
 		dev_info(dev, "swap-x2y enabled\n");
 
 	of_property_read_u32(np, "goodix,slide-wakeup", &pdata->slide_wakeup);
+	gesture_enable_flag = pdata->slide_wakeup;
 	if (pdata->slide_wakeup)
 		dev_info(dev, "slide-wakeup enabled\n");
 
@@ -2171,7 +2192,7 @@ static int gtp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto exit_unreg_input_dev;
 	}
 	gtp_work_control_enable(ts, false);
-	if (ts->pdata->slide_wakeup) {
+	if (gesture_enable_flag) {
 		dev_info(&client->dev, "slide wakeup enabled\n");
 		ret = enable_irq_wake(client->irq);
 		if (ret < 0)
@@ -2284,7 +2305,7 @@ static void gtp_suspend(struct goodix_ts_data *ts)
 
 	gtp_esd_off(ts);
 	gtp_work_control_enable(ts, false);
-	if (ts->pdata->slide_wakeup) {
+	if (gesture_enable_flag) {
 		ret = gtp_enter_doze(ts);
 		gtp_work_control_enable(ts, true);
 	} else if (ts->pdata->power_off_sleep) {
@@ -2341,7 +2362,7 @@ static void gtp_resume(struct goodix_ts_data *ts)
 
 	gtp_work_control_enable(ts, false);
 
-	if (ts->pdata->slide_wakeup && test_bit(DOZE_MODE, &ts->flags)) {
+	if (gesture_enable_flag && test_bit(DOZE_MODE, &ts->flags)) {
 		ret = gtp_gesture_wakeup(ts);
 		if (ret)
 			dev_warn(&ts->client->dev, "Failed wake up from gesture mode\n");
