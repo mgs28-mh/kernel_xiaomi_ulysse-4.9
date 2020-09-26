@@ -53,7 +53,6 @@
 
 #undef pr_info
 #define pr_info pr_err
-#define dev_dbg dev_err
 
 #else
 #undef pr_info
@@ -1286,16 +1285,14 @@ static void bq2560x_external_power_changed(struct power_supply *psy)
 
 	ret = 0;
 	bq2560x_get_prop_charge_status(bq);
-	if (bq->usb_present && (current_limit != 2)) {
+	if (bq->usb_present) {
 		if (prop.intval == 0) {
 			pr_err("set usb online\n");
-			power_supply_set_property(bq->usb_psy, POWER_SUPPLY_PROP_ONLINE, true);
 			ret = 1;
 		}
 	} else {
 		if (prop.intval == 1) {
 			pr_err("set usb offline\n");
-			power_supply_set_property(bq->usb_psy, POWER_SUPPLY_PROP_ONLINE, false);
 			ret = 0;
 		}
 	}
