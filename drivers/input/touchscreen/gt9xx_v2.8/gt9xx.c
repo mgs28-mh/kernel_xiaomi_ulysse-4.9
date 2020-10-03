@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/input/mt.h>
+#include <linux/sysctl.h>
 #include "gt9xx.h"
 
 #define GOODIX_VTG_MIN_UV	2600000
@@ -63,6 +64,10 @@ static int gtp_init_ext_watchdog(struct i2c_client *client);
 
 static int gesture_enable_flag = 1;
 static int goodix_select_gesture_mode(struct input_dev *dev, unsigned int type, unsigned int code, int value);
+
+static int sysctl_dt2w_min_val = 0;
+static int sysctl_dt2w_max_val = 1;
+static struct ctl_table_header *dt2w_sysctl_header;
 
 /*
  * return: 2 - ok, < 0 - i2c transfer error
@@ -2050,6 +2055,28 @@ static void gtp_shutdown(struct i2c_client *client)
 	gtp_power_off(data);
 }
 
+static struct ctl_table dt2w_child_table[] = {
+    {
+        .procname       = "dt2w",
+        .maxlen         = sizeof(int),
+        .mode           = 0666,
+        .data           = &gesture_enable_flag,
+        .proc_handler   = &proc_dointvec_minmax,
+        .extra1         = &sysctl_dt2w_min_val,
+        .extra2         = &sysctl_dt2w_max_val,
+    },
+    {}
+};
+
+static struct ctl_table dt2w_parent_table[] = {
+    {
+        .procname       = "dev",
+        .mode           = 0555,
+        .child          = dt2w_child_table,
+    },
+    {}
+};
+
 static int gtp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	int ret = -1;
@@ -2062,6 +2089,13 @@ static int gtp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return -ENODEV;
 	}
 #endif
+
+	/* DT2W sysctl */
+	dt2w_sysctl_header = register_sysctl_table(dt2w_parent_table);
+	if (!dt2w_sysctl_header) {
+		printk(KERN_ALERT "Error: Failed to register dt2w_sysctl_header\n");
+		return -EFAULT;
+	}
 
 	/* do NOT remove these logs */
 	dev_info(&client->dev, "GTP Driver Version: %s\n", GTP_DRIVER_VERSION);
@@ -2245,6 +2279,9 @@ exit_free_client_data:
 static int gtp_drv_remove(struct i2c_client *client)
 {
 	struct goodix_ts_data *ts = i2c_get_clientdata(client);
+
+	/* DT2W sysctl */
+	unregister_sysctl_table(dt2w_sysctl_header);
 
 	gtp_work_control_enable(ts, false);
 	gtp_unregister_powermanager(ts);
