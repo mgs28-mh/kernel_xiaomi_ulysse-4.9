@@ -17,6 +17,7 @@
  */
 
 #include "focaltech_core.h"
+#include <linux/sysctl.h>
 #if FTS_GESTURE_EN
 #define KEY_GESTURE_U                           KEY_WAKEUP
 #define KEY_GESTURE_UP                          KEY_UP
@@ -47,6 +48,10 @@
 #define GESTURE_V                               0x54
 #define GESTURE_Z                               0x41
 #define GESTURE_C                               0x34
+
+static int sysctl_dt2w_min_val = 0;
+static int sysctl_dt2w_max_val = 1;
+static struct ctl_table_header *dt2w_sysctl_header;
 
 static struct fts_gesture_st fts_gesture_data;
 static ssize_t fts_gesture_show(struct device *dev, struct device_attribute *attr, char *buf);
@@ -384,9 +389,38 @@ int fts_gesture_resume(struct i2c_client *client)
 		return 0;
 }
 
+static struct ctl_table dt2w_child_table[] = {
+    {
+        .procname       = "dt2w",
+        .maxlen         = sizeof(int),
+        .mode           = 0666,
+        .data           = &fts_gesture_data.mode,
+        .proc_handler   = &proc_dointvec_minmax,
+        .extra1         = &sysctl_dt2w_min_val,
+        .extra2         = &sysctl_dt2w_max_val,
+    },
+    {}
+};
+
+static struct ctl_table dt2w_parent_table[] = {
+    {
+        .procname       = "dev",
+        .mode           = 0555,
+        .child          = dt2w_child_table,
+    },
+    {}
+};
+
 int fts_gesture_init(struct input_dev *input_dev, struct i2c_client *client)
 {
 	struct fts_ts_data *data = i2c_get_clientdata(client);
+
+	/* DT2W sysctl */
+	dt2w_sysctl_header = register_sysctl_table(dt2w_parent_table);
+	if (!dt2w_sysctl_header) {
+		FTS_ERROR("Error: Failed to register dt2w_sysctl_header\n");
+		return -EFAULT;
+	}
 		FTS_FUNC_ENTER();
 		input_set_capability(input_dev, EV_KEY, KEY_POWER);
 		input_set_capability(input_dev, EV_KEY, KEY_GESTURE_U);
@@ -431,6 +465,8 @@ int fts_gesture_exit(struct i2c_client *client)
 {
 		FTS_FUNC_ENTER();
 		sysfs_remove_group(&client->dev.kobj, &fts_gesture_group);
+		/* DT2W sysctl */
+		unregister_sysctl_table(dt2w_sysctl_header);
 		FTS_FUNC_EXIT();
 		return 0;
 }
