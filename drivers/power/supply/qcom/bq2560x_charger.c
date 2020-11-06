@@ -1283,7 +1283,6 @@ static void bq2560x_external_power_changed(struct power_supply *psy)
 	else
 		pr_info("usb online status =%d\n", prop.intval);
 
-	ret = 0;
 	bq2560x_get_prop_charge_status(bq);
 	if (bq->usb_present) {
 		if (prop.intval == 0) {
