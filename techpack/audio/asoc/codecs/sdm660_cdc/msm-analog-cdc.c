@@ -3398,6 +3398,11 @@ static int msm_anlg_cdc_codec_enable_lo_pa(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	struct msm_asoc_mach_data *pdata = NULL;
+	pdata = snd_soc_card_get_drvdata(codec->component.card);
+#endif
+
 	dev_dbg(codec->dev, "%s: %d %s\n", __func__, event, w->name);
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
@@ -3405,6 +3410,12 @@ static int msm_anlg_cdc_codec_enable_lo_pa(struct snd_soc_dapm_widget *w,
 				       DIG_CDC_EVENT_RX3_MUTE_OFF);
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+		cancel_delayed_work_sync(&pdata->pa_gpio_work);
+		msm_spk_ext_pa_ctrl(pdata, true);
+		pr_debug("At %d In (%s),close pa,spk_ext_pa_gpio_lc=%d\n",__LINE__, __FUNCTION__,gpio_get_value(pdata->spk_ext_pa_gpio_lc));
+		pdata->pa_is_on = 0;
+#endif
 		msm_anlg_cdc_dig_notifier_call(codec,
 				       DIG_CDC_EVENT_RX3_MUTE_ON);
 		break;
