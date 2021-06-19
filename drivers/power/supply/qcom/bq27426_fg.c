@@ -1336,6 +1336,10 @@ static void fg_external_power_changed(struct power_supply *psy)
 
 }
 
+static char *bq_fg_supplied_to[] = {
+	"battery",
+};
+
 static int fg_psy_register(struct bq_fg_chip *bq)
 {
 	struct power_supply_config fg_psy_cfg = {};
@@ -1349,11 +1353,13 @@ static int fg_psy_register(struct bq_fg_chip *bq)
 	bq->fg_psy_desc.external_power_changed = fg_external_power_changed;
 	bq->fg_psy_desc.property_is_writeable = fg_prop_is_writeable;
 
+
 	fg_psy_cfg.drv_data = bq;
-	fg_psy_cfg.num_supplicants = 0;
+	fg_psy_cfg.supplied_to = bq_fg_supplied_to;
+	fg_psy_cfg.num_supplicants = ARRAY_SIZE(bq_fg_supplied_to);
+
 	bq->fg_psy = devm_power_supply_register(bq->dev,
-						&bq->fg_psy_desc,
-						&fg_psy_cfg);
+						&bq->fg_psy_desc, &fg_psy_cfg);
 	if (IS_ERR(bq->fg_psy)) {
 		pr_err("Failed to register fg_psy");
 		return PTR_ERR(bq->fg_psy);
