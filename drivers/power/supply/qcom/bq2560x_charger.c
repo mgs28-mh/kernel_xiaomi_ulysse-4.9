@@ -1965,7 +1965,7 @@ static enum alarmtimer_restart bq2560x_jeita_alarm_cb(struct alarm *alarm,
 	unsigned long ns;
 
 	bq2560x_stay_awake(&bq->bq2560x_ws, WAKEUP_SRC_JEITA);
-	schedule_delayed_work(&bq->charge_jeita_work, HZ/2);
+	schedule_delayed_work(&bq->charge_jeita_work, msecs_to_jiffies(500));
 
 	ns = calculate_jeita_poll_interval(bq) * 1000000000LL;
 	alarm_forward_now(alarm, ns_to_ktime(ns));
@@ -2002,7 +2002,7 @@ static void bq2560x_discharge_jeita_workfunc(struct work_struct *work)
 	bq2560x_check_jeita(bq);
 
 	schedule_delayed_work(&bq->discharge_jeita_work,
-							calculate_jeita_poll_interval(bq) * HZ);
+							calculate_jeita_poll_interval(bq) * msecs_to_jiffies(1000));
 }
 
 static const unsigned char* charge_stat_str[] = {
@@ -2165,7 +2165,7 @@ static irqreturn_t bq2560x_charger_interrupt(int irq, void *dev_id)
 		bq2560x_disable_watchdog_timer(bq);
 
 		schedule_delayed_work(&bq->discharge_jeita_work,
-							calculate_jeita_poll_interval(bq) * HZ);
+							calculate_jeita_poll_interval(bq) * msecs_to_jiffies(1000));
 
 		pr_err("usb removed, set usb present = %d\n", bq->usb_present);
 	} else if (bq->power_good && !bq->usb_present) {
