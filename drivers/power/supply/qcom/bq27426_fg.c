@@ -254,6 +254,9 @@ struct bq_fg_chip {
 	struct power_supply *fg_psy;
 	struct power_supply_desc fg_psy_desc;
 
+	struct power_supply *batt_psy;
+	struct power_supply_desc batt_psy_desc;
+
 	struct qpnp_vadc_chip	*vadc_dev;
 	struct regulator		*vdd;
 	u32	connected_rid;
@@ -1133,6 +1136,35 @@ static int fg_get_batt_health(struct bq_fg_chip *bq)
 		return POWER_SUPPLY_HEALTH_GOOD;
 
 }
+
+
+static struct power_supply *get_battery_psy(struct bq_fg_chip *bq)
+{
+	if (bq->batt_psy)
+		return bq->batt_psy;
+	bq->batt_psy = power_supply_get_by_name("battery");
+	if (!bq->batt_psy)
+		pr_debug("battery power supply not found\n");
+
+	return bq->batt_psy;
+}
+
+static int fg_get_prop_from_battery(struct bq_fg_chip *bq, 
+				enum power_supply_property psp,
+				union power_supply_propval *val)
+{
+	struct power_supply *batt_psy = get_battery_psy(bq);
+
+	int ret = 0;
+
+	if (!batt_psy)
+		return -EINVAL;
+
+	ret = power_supply_get_property(batt_psy, psp, val);
+
+	return ret;
+}
+
 #if 0
 static void parse_dt(struct bq_fg_chip *bq)
 {
@@ -1150,6 +1182,7 @@ static enum power_supply_property fg_props[] = {
 	POWER_SUPPLY_PROP_TEMP,
 
 	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 
 
 	POWER_SUPPLY_PROP_HEALTH,
@@ -1239,12 +1272,8 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 		break;
 
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		ret = fg_read_dc(bq);
-		mutex_lock(&bq->data_lock);
-		if (ret > 0)
-			bq->batt_dc = ret;
-		val->intval = bq->batt_dc * 1000;
-		mutex_unlock(&bq->data_lock);
+		ret = fg_get_prop_from_battery(bq,
+				POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN, val);
 		break;
 
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
