@@ -191,6 +191,14 @@ enum {
 	BATTERY_PROFILE_MAX,
 };
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+struct fg_cyc_ctr_data {
+	bool		started;
+	u16		count;
+	struct mutex	lock;
+};
+#endif
+
 struct bq_fg_chip {
 	struct device		*dev;
 	struct i2c_client	*client;
@@ -237,7 +245,10 @@ struct bq_fg_chip {
 	int	batt_curr;
 
 	int batt_cyclecnt;
-
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	struct fg_cyc_ctr_data	cyc_ctr;
+	struct work_struct cycle_count_work;
+#endif
 
 	struct work_struct update_work;
 
@@ -1046,11 +1057,48 @@ static int fg_read_rm(struct bq_fg_chip *bq)
 
 }
 
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+static int fg_get_batt_status(struct bq_fg_chip *bq);
+static void update_cycle_count(struct work_struct *work)
+{
+	int rc = 0;
+	int status;
+
+	struct bq_fg_chip *bq = container_of(work,
+							struct bq_fg_chip, cycle_count_work);
+
+	mutex_lock(&bq->cyc_ctr.lock);
+	status = fg_get_batt_status(bq);
+	pr_info("Cycle count : %d", bq->cyc_ctr.count);
+	if (status == POWER_SUPPLY_STATUS_CHARGING) {
+		bq->cyc_ctr.started = true;
+	}
+
+	if (status == POWER_SUPPLY_STATUS_FULL && bq->cyc_ctr.started) {
+		bq->cyc_ctr.started = false;
+		pr_info("Charging done, increment charge cycle");
+		bq->cyc_ctr.count++;
+	}
+out:
+	mutex_unlock(&bq->cyc_ctr.lock);
+}
+#endif
+
 static int fg_read_cyclecount(struct bq_fg_chip *bq)
 {
 	int ret;
 	u16 cc;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	int count;
 
+	if (bq->cyc_ctr.count == -ENODATA) {
+		count = 0;
+	} else {
+		count = bq->cyc_ctr.count;
+	}
+
+	return count;
+#else
 	if (bq->regs[BQ_FG_REG_CC] == INVALID_REG_ADDR) {
 		pr_err("Cycle Count not supported!\n");
 		return -1;
@@ -1064,7 +1112,21 @@ static int fg_read_cyclecount(struct bq_fg_chip *bq)
 	}
 
 	return cc;
+#endif
 }
+
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+static int fg_set_cycle_count(struct bq_fg_chip *bq, int value)
+{
+	int rc = 0;
+
+	pr_info("Setting cycle count to %d by userspace", value);
+	bq->batt_cyclecnt = value;
+	bq->cyc_ctr.count = value;
+
+	return rc;
+}
+#endif
 
 static int fg_read_tte(struct bq_fg_chip *bq)
 {
@@ -1183,7 +1245,9 @@ static enum power_supply_property fg_props[] = {
 
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
-
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	POWER_SUPPLY_PROP_CYCLE_COUNT,
+#endif
 
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
@@ -1326,6 +1390,11 @@ static int fg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_UPDATE_NOW:
 		fg_dump_registers(bq);
 		break;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+		fg_set_cycle_count(bq, val->intval);
+		break;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -2053,6 +2122,10 @@ static int bq_fg_probe(struct i2c_client *client,
 	bq->batt_temp	= -ENODATA;
 	bq->batt_curr	= -ENODATA;
 	bq->batt_cyclecnt = -ENODATA;
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	bq->cyc_ctr.count = -ENODATA;
+	bq->cyc_ctr.started = false;
+#endif
 
 	bq->fake_soc 	= -EINVAL;
 	bq->fake_temp	= -EINVAL;
@@ -2072,6 +2145,9 @@ static int bq_fg_probe(struct i2c_client *client,
 	mutex_init(&bq->data_lock);
 	mutex_init(&bq->update_lock);
 	mutex_init(&bq->irq_complete);
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	mutex_init(&bq->cyc_ctr.lock);
+#endif
 
 	bq->resume_completed = true;
 	bq->irq_waiting = false;
@@ -2092,6 +2168,9 @@ static int bq_fg_probe(struct i2c_client *client,
 
 	}
 	INIT_WORK(&bq->update_work, fg_update_bqfs_workfunc);
+#ifdef CONFIG_MACH_XIAOMI_ULYSSE
+	INIT_WORK(&bq->cycle_count_work, update_cycle_count);
+#endif
 
 	fg_parse_batt_id(bq);
 
