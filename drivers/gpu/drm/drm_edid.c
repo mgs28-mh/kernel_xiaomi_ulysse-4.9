@@ -4309,7 +4309,7 @@ static void drm_parse_hdmi_deep_color_info(struct drm_connector *connector,
 	DRM_DEBUG("%s: Assigning HDMI sink color depth as %d bpc.\n",
 		  connector->name, dc_bpc);
 	info->bpc = dc_bpc;
-
+	
 	/*
 	 * Deep color support mandates RGB444 support for all video
 	 * modes and forbids YCRCB422 support for all video modes per
