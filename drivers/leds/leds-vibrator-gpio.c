@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2018 XiaoMi, Inc.
- * Author: Mike Lockwood <lockwood@android.com>
+ * Author: Mike Lockwood <lockwood@android.com>`
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -51,7 +51,7 @@ static enum hrtimer_restart vibrator_gpio_timer_func(struct hrtimer *timer)
 }
 
 #ifdef CONFIG_PM
-static vibrator_gpio_suspend(struct device *dev) {
+static int vibrator_gpio_suspend(struct device *dev) {
 	struct vibrator_gpio_data *pdata = dev_get_drvdata(dev);
 
 	hrtimer_cancel(&pdata->vib_timer);
