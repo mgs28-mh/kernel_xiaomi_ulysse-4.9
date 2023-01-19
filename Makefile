@@ -723,11 +723,15 @@ ifeq ($(shell /bin/sh -c "$(CC) --version|grep Android"),)
 KBUILD_CFLAGS	+= -mllvm -polly \
 		   -mllvm -polly-run-dce \
 		   -mllvm -polly-run-inliner \
-		   -mllvm -polly-opt-fusion=max \
 		   -mllvm -polly-ast-use-context \
 		   -mllvm -polly-detect-keep-going \
 		   -mllvm -polly-vectorizer=stripmine \
 		   -mllvm -polly-invariant-load-hoisting
+
+ifneq ($(shell test $(CONFIG_CLANG_VERSION) -gt 130000; echo $$?),0)
+POLLY_FLAGS	+= -mllvm -polly-opt-fusion=max
+endif
+
 endif
 endif
 
